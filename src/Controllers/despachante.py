@@ -1,36 +1,95 @@
+import threading
+
+
 class Despachante:
 
     def __init__(self, pool):
         self.pool = pool
+        self.total_solicitacoes = 0
+        self.total_finalizadas = 0
+        self.corridas_ativas = 0
+        self.mutex = threading.Lock()
+        self.ordem_evento = 0
+
+    def _snapshot_metricas(self):
+        return (
+            f"solicitadas={self.total_solicitacoes} | "
+            f"ativas={self.corridas_ativas} | "
+            f"finalizadas={self.total_finalizadas}"
+        )
+
+    def _metricas(self):
+        with self.mutex:
+            return self._snapshot_metricas()
+
+    def _registrar_log(self, mensagem):
+        with self.mutex:
+            self.ordem_evento += 1
+            print(f"[{self.ordem_evento:04d}] {mensagem}")
 
     def solicitar_corrida(self, passageiro):
+        with self.mutex:
+            self.total_solicitacoes += 1
+            metricas = self._snapshot_metricas()
+
+        self._registrar_log(
+            f"[DESPACHANTE] Solicitação recebida para passageiro {passageiro.id}. "
+            f"Métricas: {metricas}"
+        )
 
         resultado = self.pool.alocar(passageiro)
 
         if resultado:
-            print(
-                f"Passageiro {passageiro.id} "
-                f"alocado ao motorista "
-                f"{passageiro.motorista.id}"
-            )
+            with self.mutex:
+                self.corridas_ativas += 1
+                metricas = self._snapshot_metricas()
 
+            self._registrar_log(
+                f"[DESPACHANTE] Passageiro {passageiro.id} alocado ao motorista "
+                f"{passageiro.motorista.id}. Métricas: {metricas}"
+            )
             return True
 
+        with self.mutex:
+            metricas = self._snapshot_metricas()
+
+        self._registrar_log(
+            f"[DESPACHANTE] Passageiro {passageiro.id} não pôde ser alocado agora. "
+            f"Métricas: {metricas}"
+        )
         return False
 
     def finalizar_corrida(self, passageiro):
-
         if not passageiro.em_corrida:
+            with self.mutex:
+                metricas = self._snapshot_metricas()
+
+            self._registrar_log(
+                f"[DESPACHANTE] Passageiro {passageiro.id} não estava em corrida. "
+                f"Métricas: {metricas}"
+            )
             return False
 
+        motorista_id = passageiro.motorista.id if passageiro.motorista else None
         resultado = self.pool.finalizar(passageiro)
 
         if resultado:
-            print(
-                f"Corrida do passageiro "
-                f"{passageiro.id} finalizada."
-            )
+            with self.mutex:
+                self.corridas_ativas -= 1
+                self.total_finalizadas += 1
+                metricas = self._snapshot_metricas()
 
+            self._registrar_log(
+                f"[DESPACHANTE] Corrida encerrada: passageiro {passageiro.id} concluiu a viagem, "
+                f"motorista {motorista_id} foi liberado. Métricas: {metricas}"
+            )
             return True
 
+        with self.mutex:
+            metricas = self._snapshot_metricas()
+
+        self._registrar_log(
+            f"[DESPACHANTE] Não foi possível encerrar a corrida do passageiro {passageiro.id}. "
+            f"Métricas: {metricas}"
+        )
         return False
