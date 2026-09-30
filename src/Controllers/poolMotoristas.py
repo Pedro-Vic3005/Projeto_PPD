@@ -14,6 +14,10 @@ class PoolMotoristas:
 
         self.mutex = threading.Lock()
         self.semaforo = threading.Semaphore(quantidade)
+        self.passageiros_ativos_por_motorista = {
+            motorista.id: set() for motorista in self.motoristas
+        }
+        self.duplicidades = 0
 
     def alocar(self, passageiro):
 
@@ -30,7 +34,12 @@ class PoolMotoristas:
                 if motorista.disponivel:
 
                     motorista.ocupar()
+                    passageiros_ativos = self.passageiros_ativos_por_motorista[motorista.id]
+                    if passageiros_ativos:
+                        self.duplicidades += 1
+
                     passageiro.atribuir_motorista(motorista)
+                    passageiros_ativos.add(passageiro.id)
 
                     return True
 
@@ -44,7 +53,9 @@ class PoolMotoristas:
             if not passageiro.em_corrida:
                 return False
 
+            motorista = passageiro.motorista
             if passageiro.finalizar_corrida():
+                self.passageiros_ativos_por_motorista[motorista.id].discard(passageiro.id)
 
                 self.semaforo.release()
 

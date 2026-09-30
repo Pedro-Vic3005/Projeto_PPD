@@ -51,7 +51,8 @@ print("=" * 60)
 print("SIMULAÇÃO FINALIZADA COM SUCESSO!")
 print(
     f"Resumo da simulação: solicitadas={despachante.total_solicitacoes} | "
-    f"ativas={despachante.corridas_ativas} | finalizadas={despachante.total_finalizadas}"
+    f"ativas={despachante.corridas_ativas} | finalizadas={despachante.total_finalizadas} | "
+    f"duplicidades={pool.duplicidades}"
 )
 print("Todos os passageiros passaram pelo processo de alocação e encerramento.")
 print("=" * 60)
