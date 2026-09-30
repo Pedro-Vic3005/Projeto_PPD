@@ -52,6 +52,7 @@ print("SIMULAÇÃO FINALIZADA COM SUCESSO!")
 print(
     f"Resumo da simulação: solicitadas={despachante.total_solicitacoes} | "
     f"ativas={despachante.corridas_ativas} | finalizadas={despachante.total_finalizadas} | "
+    f"max_simultaneas={despachante.max_corridas_simultaneas} | "
     f"duplicidades={pool.duplicidades}"
 )
 print("Todos os passageiros passaram pelo processo de alocação e encerramento.")

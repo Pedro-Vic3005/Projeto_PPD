@@ -8,6 +8,7 @@ class Despachante:
         self.total_solicitacoes = 0
         self.total_finalizadas = 0
         self.corridas_ativas = 0
+        self.max_corridas_simultaneas = 0
         self.mutex = threading.Lock()
         self.ordem_evento = 0
 
@@ -15,6 +16,7 @@ class Despachante:
         return (
             f"solicitadas={self.total_solicitacoes} | "
             f"ativas={self.corridas_ativas} | "
+            f"max_simultaneas={self.max_corridas_simultaneas} | "
             f"finalizadas={self.total_finalizadas}"
         )
 
@@ -42,6 +44,10 @@ class Despachante:
         if resultado:
             with self.mutex:
                 self.corridas_ativas += 1
+                self.max_corridas_simultaneas = max(
+                    self.max_corridas_simultaneas,
+                    self.corridas_ativas
+                )
                 metricas = self._snapshot_metricas()
 
             self._registrar_log(
@@ -60,36 +66,29 @@ class Despachante:
         return False
 
     def finalizar_corrida(self, passageiro):
-        if not passageiro.em_corrida:
-            with self.mutex:
-                metricas = self._snapshot_metricas()
-
-            self._registrar_log(
-                f"[DESPACHANTE] Passageiro {passageiro.id} não estava em corrida. "
-                f"Métricas: {metricas}"
-            )
-            return False
-
-        motorista_id = passageiro.motorista.id if passageiro.motorista else None
-        resultado = self.pool.finalizar(passageiro)
-
-        if resultado:
-            with self.mutex:
-                self.corridas_ativas -= 1
-                self.total_finalizadas += 1
-                metricas = self._snapshot_metricas()
-
-            self._registrar_log(
-                f"[DESPACHANTE] Corrida encerrada: passageiro {passageiro.id} concluiu a viagem, "
-                f"motorista {motorista_id} foi liberado. Métricas: {metricas}"
-            )
-            return True
-
         with self.mutex:
+            if not passageiro.em_corrida:
+                mensagem = (
+                    f"[DESPACHANTE] Passageiro {passageiro.id} não estava em corrida. "
+                )
+                resultado = False
+            else:
+                motorista_id = passageiro.motorista.id if passageiro.motorista else None
+                resultado = self.pool.finalizar(passageiro)
+
+                if resultado:
+                    self.corridas_ativas -= 1
+                    self.total_finalizadas += 1
+                    mensagem = (
+                        f"[DESPACHANTE] Corrida encerrada: passageiro {passageiro.id} concluiu a viagem, "
+                        f"motorista {motorista_id} foi liberado. "
+                    )
+                else:
+                    mensagem = (
+                        f"[DESPACHANTE] Não foi possível encerrar a corrida do passageiro {passageiro.id}. "
+                    )
+
             metricas = self._snapshot_metricas()
 
-        self._registrar_log(
-            f"[DESPACHANTE] Não foi possível encerrar a corrida do passageiro {passageiro.id}. "
-            f"Métricas: {metricas}"
-        )
-        return False
+        self._registrar_log(f"{mensagem}Métricas: {metricas}")
+        return resultado
